@@ -91,6 +91,7 @@ module.exports = { PORT, VNC_HOST, VNC_PORT, streamOptions, config };
 console.log(`Remote desktop server listening on 0.0.0.0:${PORT}`);
 console.log(`VNC bridge -> ${VNC_HOST}:${VNC_PORT}`);
 console.log(`Stream: scale=${streamOptions.scaleViewport}, quality=${streamOptions.quality}`);
+console.log(`Stream config: ${JSON.stringify(streamOptions)}`);
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Remote desktop server listening on 0.0.0.0:${PORT}`);

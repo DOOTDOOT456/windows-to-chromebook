@@ -25,6 +25,23 @@
   header h1 { font-size: 14px; font-weight: 600; margin-right: auto; }
   #settingsBtn { background: #1f2733; color: #e6edf3; border: 0; border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
   #settingsBtn:hover { background: #2a3543; }
+  #defsToggle {
+    position: absolute; top: 12px; right: 12px; z-index: 6;
+    background: #1f2733; color: #e6edf3; border: 0; border-radius: 6px;
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+  }
+  #defsPanel {
+    position: absolute; inset: 0; z-index: 5;
+    background: #0b0f14; color: #e6edf3; padding: 24px; text-align: left;
+    display: none; overflow-y: auto;
+  }
+  #defsPanel h2 { margin-top: 0; font-size: 18px; }
+  #defsPanel .def { margin: 12px 0; padding: 10px 14px; background: #11161d; border-left: 3px solid #2563eb; border-radius: 6px; }
+  #defsPanel .def dt { font-weight: 600; color: #93c5fd; }
+  #defsPanel .def dd { margin: 4px 0 0 0; color: #b9c7d6; font-size: 13px; line-height: 1.6; }
+  #defsPanel .def .type { color: #5f8f6a; font-style: italic; }
+  #defsPanel code { background: #0b0f14; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  #defsPanel .note { color: #8b98a9; font-size: 12px; margin-top: 18px; }
   #settingsPanel {
     position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
     background: #11161d; border-top: 1px solid #2a3543;
@@ -97,7 +114,85 @@
   </div>
   <button id="btnDisconnect" class="danger hidden">Disconnect</button>
   <button id="settingsBtn" title="Settings">⚙️ Settings</button>
+  <button id="defsToggle" title="Key definitions">📖 Key definitions</button>
 </header>
+
+<div id="defsPanel">
+  <h2>Config key definitions</h2>
+  <dl class="def">
+    <dt><code>server.port</code> <span class="type">number</span></dt>
+    <dd>Port the Node server listens on. Default <code>6080</code>.</dd>
+    <dt><code>server.host</code> <span class="type">string</span></dt>
+    <dd>Interface to bind to. <code>127.0.0.1</code> keeps it local only; use <code>0.0.0.0</code> to expose on the network.</dd>
+    <dt><code>vnc.host</code> <span class="type">string</span></dt>
+    <dd>Address of the VNC server on your PC. Default <code>127.0.0.1</code>.</dd>
+    <dt><code>vnc.port</code> <span class="type">number</span></dt>
+    <dd>VNC server port. Default <code>5900</code>.</dd>
+    <dt><code>stream.scaleViewport</code> <span class="type">boolean</span></dt>
+    <dd>Scale the VNC desktop to fit the browser window. Default <code>true</code>.</dd>
+    <dt><code>stream.viewOnly</code> <span class="type">boolean</span></dt>
+    <dd>If true, the browser sees the desktop but cannot send mouse/keyboard input. Default <code>false</code>.</dd>
+    <dt><code>stream.quality</code> <span class="type">number</span> (1–9)</dt>
+    <dd>Video quality of the VNC frames. Higher = sharper, more bandwidth. Default <code>6</code>.</dd>
+    <dt><code>stream.encoding</code> <span class="type">string</span></dt>
+    <dd>Pixel format: <code>auto</code> (recommended), <code>raw</code>, <code>rre</code>, or <code>hextile</code>. Default <code>auto</code>.</dd>
+    <dt><code>stream.desktopScalingFactor</code> <span class="type">number</span></dt>
+    <dd>Deliberately scale the desktop by 1x–3x for cramped displays. Default <code>1</code>.</dd>
+    <dt><code>stream.jpegQuality</code> <span class="type">number</span> (1–9)</dt>
+    <dd>JPEG compression level for the frames. Default <code>6</code>.</dd>
+    <dt><code>stream.paletteSize</code> <span class="type">number</span></dt>
+    <dd>Limit colors (0 = no limit). Useful for 24-bit LCDs. Default <code>0</code>.</dd>
+    <dt><code>stream.ffv1</code> <span class="type">boolean</span></dt>
+    <dd>Use the FFV1 lossless codec. Requires a VNC server that supports it. Default <code>false</code>.</dd>
+    <dt><code>stream.copyRectangles</code> <span class="type">boolean</span></dt>
+    <dd>Send only changed rectangles (better for fast UI). Default <code>false</code>.</dd>
+    <dt><code>stream.tight</code> <span class="type">boolean</span></dt>
+    <dd>Use Tight encoding (good for low bandwidth). Default <code>false</code>.</dd>
+    <dt><code>stream.tightCompression</code> <span class="type">boolean</span></dt>
+    <dd>Enable Tight zlib compression. Default <code>false</code>.</dd>
+    <dt><code>control.sendCtrlAltDel</code> <span class="type">boolean</span></dt>
+    <dd>Send Ctrl+Alt+Del when the matching button is pressed. Default <code>true</code>.</dd>
+    <dt><code>control.sendAltTab</code> <span class="type">boolean</span></dt>
+    <dd>Send Alt+Tab (task switcher). Default <code>true</code>.</dd>
+    <dt><code>control.sendAltF4</code> <span class="type">boolean</span></dt>
+    <dd>Send Alt+F4 (close window). Default <code>true</code>.</dd>
+    <dt><code>control.sendWinD</code> <span class="type">boolean</span></dt>
+    <dd>Send Win+D (show desktop). Default <code>true</code>.</dd>
+    <dt><code>control.sendEsc</code> <span class="type">boolean</span></dt>
+    <dd>Send Escape key. Default <code>true</code>.</dd>
+    <dt><code>control.sendEnter</code> <span class="type">boolean</span></dt>
+    <dd>Send Enter key. Default <code>true</code>.</dd>
+    <dt><code>control.sendSpace</code> <span class="type">boolean</span></dt>
+    <dd>Send Space key. Default <code>true</code>.</dd>
+    <dt><code>control.sendArrowKeys</code> <span class="type">boolean</span></dt>
+    <dd>Send Arrow keys. Default <code>true</code>.</dd>
+    <dt><code>control.sendNumericPad</code> <span class="type">boolean</span></dt>
+    <dd>Send Numeric keypad keys. Default <code>true</code>.</dd>
+    <dt><code>control.showSendKeys</code> <span class="type">boolean</span></dt>
+    <dd>Show the Ctrl+Alt+Del button row. Default <code>true</code>.</dd>
+    <dt><code>control.showFullscreen</code> <span class="type">boolean</span></dt>
+    <dd>Show the fullscreen button. Default <code>true</code>.</dd>
+    <dt><code>client.showCursor</code> <span class="type">boolean</span></dt>
+    <dd>Show the remote cursor in the browser. Default <code>true</code>.</dd>
+    <dt><code>client.waitForWindowResponse</code> <span class="type">boolean</span></dt>
+    <dd>Wait for a window-response before sending input. Default <code>false</code>.</dd>
+    <dt><code>client.hostname</code> <span class="type">string</span></dt>
+    <dd>VNC server hostname. Default <code>localhost</code>.</dd>
+    <dt><code>client.password</code> <span class="type">string</span></dt>
+    <dd>VNC password (injected at connect time). Default <code>""</code>.</dd>
+    <dt><code>client.port</code> <span class="type">number</span></dt>
+    <dd>VNC server port. Default <code>5900</code>.</dd>
+    <dt><code>client.showDotCursor</code> <span class="type">boolean</span></dt>
+    <dd>Show a dot cursor instead of a standard arrow. Default <code>false</code>.</dd>
+    <dt><code>client.shared</code> <span class="type">boolean</span></dt>
+    <dd>Allow multiple clients to view the same desktop. Default <code>false</code>.</dd>
+    <dt><code>client.cursor</code> <span class="type">boolean</span></dt>
+    <dd>Show the remote cursor. Default <code>false</code>.</dd>
+    <dt><code>client.resizeSession</code> <span class="type">boolean</span></dt>
+    <dd>Resize the VNC session when the browser window resizes. Default <code>false</code>.</dd>
+  </dl>
+  <p class="note">Defaults match the existing behavior. Values you add to <code>config.example.json</code> override the server only; the browser uses the in-panel controls above, which sync with the active connection.</p>
+</div>
 
 <div id="settingsPanel">
   <label>Scale viewport <input type="checkbox" id="s_scale" checked></label>
@@ -223,6 +318,9 @@
   $('settingsBtn').addEventListener('click', () => {
     $('settingsPanel').style.display = $('settingsPanel').style.display === 'block' ? 'none' : 'block';
   });
+  $('defsToggle').addEventListener('click', () => {
+    $('defsPanel').style.display = $('defsPanel').style.display === 'block' ? 'none' : 'block';
+  });
 
   // Read the filter controls into the RFB options.
   function readSettings() {
@@ -314,6 +412,12 @@
   // Allow pre-filling via URL hash: remote-desktop.html#wss://host/websockify
   const hash = decodeURIComponent(location.hash.slice(1));
   if (hash.startsWith('ws')) { $('url').value = hash; connect(); }
+
+  // Show definitions when the hash URL is present.
+  if (location.hash === '#defs') {
+    $('defsPanel').style.display = 'block';
+    setTimeout(() => { document.querySelector('#defsPanel h2').scrollIntoView({ behavior: 'smooth' }); }, 100);
+  }
 </script>
 </body>
 </html>

@@ -65,9 +65,16 @@ The Node server reads settings from `config.example.json` (or `config.json`):
 ```json
 {
   "server": { "port": 6080, "host": "127.0.0.1" },
-  "vnc": { "host": "127.0.0.1", "port": 5900 }
+  "vnc": { "host": "127.0.0.1", "port": 5900 },
+  "stream": { "scaleViewport": true, "quality": 6 },
+  "control": { "sendCtrlAltDel": true },
+  "client": { "password": "" }
 }
 ```
+
+Every key and its definition lives in the client: open the client and click
+**📖 Key definitions** (or add `#defs` to the URL) to see the full list with
+type, default, and effect.
 
 Copy `config.example.json` to `config.json` and edit it to your setup. Env
 vars (`PORT`, `VNC_HOST`, `VNC_PORT`) always override the file.
