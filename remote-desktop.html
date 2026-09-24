@@ -239,8 +239,12 @@
   <div id="fatal"></div>
 </div>
 
-<!-- noVNC core + WebSockets shim loaded from CDN -->
-<script src="https://unpkg.com/@novnc/novnc@1.5.0/lib/rfb.js"></script>
+<!-- noVNC core (browser ES module build) + global shim -->
+<script type="module">
+  import RFB from 'https://unpkg.com/@novnc/novnc@1.5.0/core/rfb.js';
+  window.RFB = RFB;
+  window.dispatchEvent(new Event('rfb-ready'));
+</script>
 
 <script>
   const $ = (id) => document.getElementById(id);
