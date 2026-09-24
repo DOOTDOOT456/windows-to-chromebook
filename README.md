@@ -77,25 +77,56 @@ The tunnel sits on the Windows PC. The **Chromebook connects to the public
 tunnel URL over TLS** — the Chromebook never touches the PC's IP directly and
 never installs anything.
 
-### Quick tunnel (recommended for first setup)
+### Quick tunnel — get a fixed URL (Cloudflare)
 
-Zero DNS, zero account — Cloudflare gives you a public URL:
+Cloudflare's quick tunnels normally give a random URL (`random-name`).
+You have two ways to get a fixed one:
+
+**Option A — Custom subdomain via the cloudflared CLI** (free, no Cloudflare
+account needed for the URL itself):
 
 ```bat
-winget install cloudflare.cloudflared
-cloudflared tunnel run --url http://localhost:6080
+cloudflared tunnel create my-desktop
+cloudflared tunnel token -- tunnel-id <TUNNEL_ID>
+cloudflared tunnel run --url http://localhost:6080 --subdomain my-desktop
 ```
 
-You get a URL like:
+Your URL is:
 
 ```
-https://random-name.trycloudflare.com
+https://my-desktop.trycloudflare.com
 ```
 
-### Fixed tunnel (optional — permanent URL)
+> ⚠️ The `--subdomain` value must match what Cloudflare accepted in step 1.
 
-If you want a stable address, use your own domain (or request a fixed quick
-tunnel URL from Cloudflare) and create the tunnel once:
+**Option B — Fixed URL via the Cloudflare dashboard** (free, no setup):
+
+1. Open <https://one.dash.cloudflare.com> → **Networks → Tunnels** → **Create a tunnel**.
+2. Choose **HTTP** (or **Secure WebSockets**, which we use: `wss://`).
+3. Under **Quick Tunnels**, click **Request a fixed URL** and enter a name like
+   `my-desktop`.
+4. Copy the assigned URL (e.g. `https://my-desktop.trycloudflare.com`).
+5. Create the tunnel locally:
+
+   ```bat
+   cloudflared tunnel create my-desktop
+   cloudflared tunnel token -- tunnel-id <TUNNEL_ID>
+   ```
+
+6. Run it with the token:
+
+   ```bat
+   cloudflared tunnel run --url http://localhost:6080 --subdomain my-desktop
+   ```
+
+> Note: fixed quick tunnel URLs are approved in the Cloudflare dashboard and
+> can take a few minutes. Approved URLs are permanent on the free plan.
+
+### Your own fixed URL via Cloudflare (choose this one)
+
+If you own a domain (`pc.your-domain.com`), point it at the tunnel. This is
+the most stable option and doesn't depend on Cloudflare's random quick-tunnel
+URLs:
 
 ```bat
 cloudflared tunnel create remote-desktop
