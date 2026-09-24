@@ -49,6 +49,20 @@
   #connectPanel h2 { font-size: 22px; }
   #connectPanel p { color: #8b98a9; font-size: 14px; max-width: 460px; line-height: 1.5; }
   #connectPanel .row { display: flex; gap: 8px; }
+  #connectPanel .row button.ghost {
+    background: #1f2733; color: #e6edf3;
+  }
+  #connectPanel .row button.ghost:hover { background: #2a3543; }
+  #exampleUrl {
+    display: flex; align-items: center; gap: 10px;
+    background: #0b0f14; border: 1px solid #2a3543; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px;
+  }
+  #exampleText {
+    flex: 1; background: #000; color: #93c5fd; padding: 8px 12px;
+    border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #exampleUrl button { white-space: nowrap; }
   #connectPanel input { width: 320px; padding: 10px 12px; font-size: 14px; }
   .hidden { display: none !important; }
   #sendKeys { display: flex; gap: 6px; }
@@ -84,11 +98,16 @@
     <div class="row">
       <input id="url" type="url" placeholder="wss://pc.example.com/websockify" spellcheck="false">
       <button id="btnConnect">Connect</button>
+      <button id="btnUseExample" class="ghost">Use example</button>
     </div>
     <div class="row">
       <input id="password" type="password" placeholder="VNC password (optional)" style="width:180px">
       <label style="font-size:13px;color:#8b98a9"><input type="checkbox" id="scale" checked> Scale to fit</label>
     </div>
+  </div>
+  <div id="exampleUrl" class="hidden">
+    <code id="exampleText"></code>
+    <button id="btnCopyUrl">Copy URL</button>
   </div>
   <div id="fatal"></div>
 </div>
@@ -160,12 +179,28 @@
   $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
   $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
   btnDisconnect.addEventListener('click', disconnect);
+  btnDisconnect.addEventListener('click', disconnect);
   sendKeys.querySelector('[data-ctrl-alt-del]').addEventListener('click', () => rfb && rfb.sendCtrlAltDel());
   sendKeys.querySelector('[data-fullscreen]').addEventListener('click', () => {
     if (document.fullscreenElement) document.exitFullscreen();
     else screenEl.requestFullscreen();
   });
   $('scale').addEventListener('change', (e) => { if (rfb) rfb.scaleViewport = e.target.checked; });
+
+  // Quick-add the example connection URL, then connect automatically.
+  $('btnUseExample').addEventListener('click', () => {
+    const example = 'wss://pc.your-domain.com/websockify';
+    $('url').value = example;
+    $('exampleText').textContent = example;
+    $('exampleUrl').classList.remove('hidden');
+    connect();
+  });
+  $('btnCopyUrl').addEventListener('click', () => {
+    $('exampleText').select();
+    document.execCommand('copy');
+    $('btnCopyUrl').textContent = 'Copied!';
+    setTimeout(() => { $('btnCopyUrl').textContent = 'Copy URL'; }, 1500);
+  });
 
   // Allow pre-filling via URL hash: remote-desktop.html#wss://host/websockify
   const hash = decodeURIComponent(location.hash.slice(1));
