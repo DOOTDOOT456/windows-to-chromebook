@@ -58,6 +58,20 @@ Windows PC (host)                       Chromebook / phone / laptop
 3. Windows Firewall may ask to allow `node.exe` — **Allow it** (private
    networks). This opens port 6080.
 
+### Server configuration
+
+The Node server reads settings from `config.example.json` (or `config.json`):
+
+```json
+{
+  "server": { "port": 6080, "host": "127.0.0.1" },
+  "vnc": { "host": "127.0.0.1", "port": 5900 }
+}
+```
+
+Copy `config.example.json` to `config.json` and edit it to your setup. Env
+vars (`PORT`, `VNC_HOST`, `VNC_PORT`) always override the file.
+
 You should see:
 
 ```

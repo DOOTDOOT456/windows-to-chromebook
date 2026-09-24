@@ -11,9 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 
-const PORT = Number(process.env.PORT) || 6080;
-const VNC_HOST = process.env.VNC_HOST || "127.0.0.1";
-const VNC_PORT = Number(process.env.VNC_PORT) || 5900;
+const { PORT, VNC_HOST, VNC_PORT } = require("./config");
 const ROOT = path.join(__dirname, "..");
 
 // Serve the static client.
