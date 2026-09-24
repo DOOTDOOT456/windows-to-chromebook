@@ -85,7 +85,7 @@ show a credentials-required screen).
 
 ## 4. Step C — Make it reachable from anywhere
 
-### Option A — Use your own domain (recommended)
+### Option A — Use your own domain (recommended, faster setup)
 
 1. Install the Cloudflare Tunnel on Windows:
 
@@ -131,6 +131,54 @@ http://<PC-IP>:6080/remote-desktop.html
 stops working the moment you leave the Wi‑Fi.
 
 ---
+
+## 4b. Optional — Use quick tunnels (Cloudflare or ngrok) without a domain
+
+> Use when you only need remote access for a few days, or when your ISP
+> changes the public IP often. The tunnel stays active as long as the PC runs.
+
+### Option 1 — Cloudflare `cloudflared` quick tunnel (recommended)
+
+No DNS, no account needed. The tunnel gets a public URL like
+`https://random-name.trycloudflare.com` and forwards it to `localhost:6080`:
+
+```bat
+cloudflared tunnel --url https://localhost:6080 run --token <your-tunnel-token>
+``` 
+
+Better: create a token once and reuse it:
+
+```bat
+cloudflared tunnel create quick-desktop
+cloudflared tunnel token -- tunnel-id <TUNNEL_ID> > tunnel.token
+cloudflared tunnel run --token $(cat tunnel.token)
+``` 
+
+> ⏱️ Quick tunnels rotate every ~24h and restart automatically when the PC is on.
+
+### Option 2 — ngrok (free tier, simpler commands)
+
+```bat
+ngrok http 6080 --host-header=localhost:6080
+``` 
+
+ngrok prints a public URL like `https://abc123.ngrok-free.app`. Point the client
+at `https://abc123.ngrok-free.app/remote-desktop.html`.
+
+### Option 3 — Second PC with Node.js (no tunnel at all)
+
+If you have a always-on PC on the same network, run the server there instead:
+
+```bat
+cd remote-desktop
+npm install
+start /b node server\server.js
+# per-device QA, verify the tunnel from the outside with a quick curl of the URL
+``` 
+
+Turn the second PC into a "gateway" — the first PC only needs the VNC server
+running, and any device on that network can connect. This removes the Cloudflare
+step entirely while keeping NAT/firewall traversal for other home devices.
 
 ## 5. Step D — Connect from your phone/laptop
 
