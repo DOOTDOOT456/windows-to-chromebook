@@ -278,7 +278,104 @@ network (Windows → Chromebook browser directly, no tunnel).
 
 ---
 
-## 8. Quick reference
+## 10. Configuration reference — every option explained
+
+The config file (`config.json`, falling back to `config.example.json`) has four
+groups. Every option, its type, default, and what it does:
+
+### `server` — where the Node bridge listens
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `port` | number | `6080` | TCP port the Node server (and noVNC client) listens on. Env var `PORT` overrides it. |
+| `host` | string | `127.0.0.1` | Interface to bind. Leave `127.0.0.1` — the Cloudflare tunnel connects locally; `0.0.0.0` exposes the client to your LAN. |
+
+### `vnc` — where the VNC server lives
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `host` | string | `127.0.0.1` | Host of the VNC server (TightVNC). Keep it local; never expose 5900 to the internet. |
+| `port` | number | `5900` | VNC TCP port. Env vars `VNC_HOST` / `VNC_PORT` override both. |
+
+### `stream` — picture quality & encoding (what the client requests)
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `scaleViewport` | bool | `true` | Fit the remote desktop to your browser window instead of showing it at native pixel size. |
+| `viewOnly` | bool | `false` | Watch-only mode: no mouse/keyboard is sent to the Windows PC. |
+| `quality` | number | `6` | Overall quality level (0–9) the client asks the VNC server for. Higher = sharper but more bandwidth. |
+| `encoding` | string | `auto` | Pixel encoding to negotiate (`auto`, `tight`, `jpeg`, `hextile`, `raw`, …). `auto` lets noVNC pick the best. **Dev-tunable** — see the FOR DEVS ONLY section. |
+
+### `control` — what the on-screen "Send keys" buttons do
+
+Each `send*` option toggles a button in the client toolbar; each sends that
+key combo to the remote Windows PC (handy when the Chromebook keyboard lacks
+the key):
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `sendCtrlAltDel` | bool | `true` | Send **Ctrl+Alt+Del** (unlock screen, task manager). |
+| `sendAltTab` | bool | `true` | Send **Alt+Tab** (switch window). |
+| `sendAltF4` | bool | `true` | Send **Alt+F4** (close window). |
+| `sendWinD` | bool | `true` | Send **Win+D** (show desktop). |
+| `sendEsc` | bool | `true` | Send **Esc**. |
+| `sendEnter` | bool | `true` | Send **Enter**. |
+| `sendSpace` | bool | `true` | Send **Space**. |
+| `sendArrowKeys` | bool | `true` | Send the **arrow keys**. |
+| `sendNumericPad` | bool | `true` | Send **numpad** keys. |
+| `showSendKeys` | bool | `true` | Show/hide the whole "Send keys" button group. |
+| `showFullscreen` | bool | `true` | Show/hide the **Fullscreen** button. |
+
+### `client` — connection & UI defaults for the browser client
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `showCursor` | bool | `true` | Show the remote cursor while moving the mouse. |
+| `waitForWindowResponse` | bool | `false` | Wait for the window to acknowledge input before sending more (reduces input lag artifacts, adds latency). |
+| `hostname` | string | `localhost` | Pre-filled VNC host in the client's address field. Leave as `localhost` — the Node bridge does the real connection. |
+| `password` | string | `""` | Pre-fill the VNC password in the client. **Leave empty** — anyone reading the page source would see it. |
+| `port` | number | `5900` | Pre-filled VNC port in the client (again, the bridge handles this). |
+| `showDotCursor` | bool | `false` | Draw a visible dot at the cursor position when the remote cursor is hidden or hard to see. |
+| `shared` | bool | `false` | Ask the VNC server to allow other simultaneous viewers ("shared session"). |
+| `cursor` | bool | `false` | Draw the local (client-side) cursor instead of the remote one. |
+| `resizeSession` | bool | `false` | Ask the Windows desktop to resize its resolution to match your browser window. **Dev-tunable.** |
+
+> The in-app version of this list is always available in the client: click
+> **📖 Key definitions** (or add `#defs` to the URL).
+
+---
+
+## 11. 🔧 FOR DEVS ONLY — configs available but shouldn't be touched
+
+These options exist in the config and are passed straight through to noVNC's
+RFB engine or the raw VNC protocol. They are off/neutral by default because the
+wrong value can garble the picture, tank performance, or break the connection
+entirely. Only change them if you understand the RFB protocol and what noVNC
+does with each setting.
+
+| Option | Default | What it really does | Why it's risky |
+|---|---|---|---|
+| `stream.encoding` | `auto` | Forces a single VNC pixel encoding (`tight`, `hextile`, `zrle`, `raw`, `copyrect`…) instead of letting the server/client negotiate per-frame. | `raw` sends uncompressed frames over the internet — instant lag. An encoding the server doesn't support will fail the handshake. |
+| `stream.desktopScalingFactor` | `1` | Requests the OS DPI scale factor noVNC advertises to the server; affects how Windows sizes the desktop. | Values ≠ 1 can misalign mouse coordinates on HiDPI Windows sessions. |
+| `stream.jpegQuality` | `6` | JPEG compression level (0–9) for `tight`/`jpeg` sub-encodings. | Only matters when a JPEG-capable encoding is active; a bad value degrades image quality with no benefit. |
+| `stream.paletteSize` | `0` | Force indexed-color mode with N palette entries (0 = off) — a very old VNC bandwidth trick. | Modern desktops look terrible in palette mode; almost never correct today. |
+| `stream.ffv1` | `false` | Enable the FFV1 lossless video codec inside Tight encoding. | Needs a server that actually implements it; silently falls back or breaks the stream with servers that don't. |
+| `stream.copyRectangles` | `false` | Allow `CopyRect` pseudo-encoding (server says "this region is identical to that one" instead of resending pixels). | Some servers misuse it with scrolling, causing smearing artifacts. |
+| `stream.tight` | `false` | Force-enable the Tight encoding family explicitly. | Redundant with `encoding: "auto"`; forcing it can conflict with negotiation. |
+| `stream.tightCompression` | `false` | Turn on Tight's extra zlib compression levels. | Higher CPU on the host for marginal bandwidth savings on fast links. |
+| `client.resizeSession` | `false` | Send `SetDesktopSize` so the Windows resolution follows your browser window size. | Windows can end up in a broken/odd resolution that's hard to undo remotely; not all VNC servers honor it. |
+| `client.shared` | `false` | Open the session in shared mode so multiple clients can watch/control at once. | Two controllers fighting over one desktop; some servers disconnect existing sessions when this flips. |
+| `client.cursor` | `false` | Client-side cursor rendering (local cursor shape instead of the server's). | Cursor shape/position can desync from the actual remote cursor. |
+| `client.showDotCursor` | `false` | Overlay a fixed dot at the pointer position. | Only useful for debugging invisible-cursor issues; visually noisy in normal use. |
+| `client.waitForWindowResponse` | `false` | Throttle input until the client window confirms the last event. | Adds input latency; only helps with very unreliable links. |
+
+> Rule of thumb: if `quality`, `scaleViewport`, and the defaults already look
+> fine, leave everything in this section alone. They're here for debugging
+> specific encoding/bandwidth problems, not for tuning ""feel"".
+
+---
+
+## 12. Quick reference
 
 ```bat
 # 1. Windows: TightVNC Server running on port 5900, strong password
@@ -299,7 +396,7 @@ https://random-name.trycloudflare.com
 
 ---
 
-## 9. Project files
+## 13. Project files
 
 ```
 remote-desktop/
