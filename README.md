@@ -73,8 +73,9 @@ VNC bridge -> 127.0.0.1:5900
 
 ## 3. Make it reachable from anywhere — Cloudflare Tunnel
 
-The tunnel sits on the Windows PC. The Chromebook never touches the PC's IP
-directly; it only connects to the public tunnel URL over TLS.
+The tunnel sits on the Windows PC. The **Chromebook connects to the public
+tunnel URL over TLS** — the Chromebook never touches the PC's IP directly and
+never installs anything.
 
 ### Quick tunnel (recommended for first setup)
 
@@ -122,15 +123,17 @@ cloudflared tunnel run remote-desktop
 
 ---
 
-## 4. Control the Chromebook from any device
+## 4. Control the Chromebook from anywhere
+
+This is the whole point: the **Chromebook controls your Windows PC**.
 
 1. On the Chromebook browser, open the tunnel URL:
    `https://random-name.trycloudflare.com` (or `https://pc.your-domain.com`).
-2. The address field is pre-filled with `wss://remote-desktop:8080/websockify`
-   (the Node server serves `/websockify` for the WebSocket connection).
+2. The address field is pre-filled with the noVNC client URL.
 3. **Click Connect**.
 4. Enter the **VNC password** (step 1.3) and click **OK**.
-5. The Chromebook's desktop appears in the browser — mouse and keyboard work.
+5. Your **Windows desktop appears in the browser** — you control it with the
+   Chromebook's mouse and keyboard.
 
 **Client buttons:** Connect, Disconnect, Ctrl+Alt+Del, Fullscreen, Scale to fit.
 
