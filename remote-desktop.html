@@ -239,14 +239,11 @@
   <div id="fatal"></div>
 </div>
 
-<!-- noVNC core (browser ES module build) + global shim -->
+<!-- noVNC core (browser ES module build). Importing inside the main
+     module guarantees RFB exists before any Connect click can run. -->
 <script type="module">
   import RFB from 'https://unpkg.com/@novnc/novnc@1.5.0/core/rfb.js';
-  window.RFB = RFB;
-  window.dispatchEvent(new Event('rfb-ready'));
-</script>
 
-<script>
   const $ = (id) => document.getElementById(id);
   const status = $('status'), panel = $('connectPanel'), screenEl = $('screen'),
         fatal = $('fatal'), btnConnect = $('btnConnect'), btnDisconnect = $('btnDisconnect'),
