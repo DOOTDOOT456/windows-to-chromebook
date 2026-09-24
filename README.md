@@ -1,88 +1,149 @@
 # Remote Desktop — loadable into about:blank
 
-`remote-desktop.html` is a fully self-contained remote desktop client (noVNC).
-To use it from an `about:blank` page:
+Self-hosted remote desktop: a single HTML file (`remote-desktop.html`) acts as the
+noVNC client, and a small Node.js server on your Windows PC bridges it to a local
+VNC server. Because the client is one file, you can open it from anywhere —
+including `about:blank` — as long as the server is reachable over the internet.
 
-1. Open `about:blank` in your browser.
-2. Open DevTools console (`F12`) on the blank tab and run:
+---
 
-```js
-document.write('<iframe src="https://YOUR-HOST/remote-desktop.html" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>');
-```
-
-...or simpler: just bookmark the hosted file and it works the same. The file itself
-is what matters — serve it over HTTPS and it runs anywhere.
-
-## Quick start (URL pre-fill)
-
-Append the WebSocket URL to the file as a hash and it auto-connects:
+## The 3-step flow
 
 ```
-https://your-host/remote-desktop.html#wss://pc.your-domain.com/websockify
+Your browser (laptop)        Freebuff/Cloudflare Tunnel           Windows PC
+      |                             |                                   |
+      |--- https://pc.your-domain.com/remote-desktop.html --->|           |
+      |<--- (browser receives the file)----------------------|  node server.js |
+      |                                                    |  (port 6080)  |
+      |--- wss://pc.your-domain.com/websockify --->|          |             |
+      |<--- VNC frames over WebSocket ------------------|  TightVNC Server  |
+      |<--- (view your desktop)----------------------|  (port 5900)      |
 ```
 
-## Server setup on your Windows PC
+---
 
-Three parts: a **Node.js server**, a **VNC server** on Windows, and a **tunnel** so
-you can reach it from anywhere.
+## 1. On your Windows PC
 
-### 1. Node server (replaces `websockify`)
+### a) Start the Node server
 
 ```bat
 cd remote-desktop
-copy package.json .
-copy server\server.js .
 npm install
 start /b node server\server.js
 ```
 
 That serves `remote-desktop.html` on `http://localhost:6080` and bridges
-WebSocket `/websockify` → `localhost:5900` (VNC). Env vars:
+WebSocket `/websockify` → `localhost:5900` (VNC). You can also set:
 
-| Var | Default | |
+| Env var | Default | What it does |
 |---|---|---|
-| `PORT` | `6080` | port to listen on |
-| `VNC_HOST` | `127.0.0.1` | where the VNC server listens |
+| `PORT` | `6080` | Port the server listens on |
+| `VNC_HOST` | `127.0.0.1` | Where the VNC server listens (keep `127.0.0.1` for safety) |
 | `VNC_PORT` | `5900` | VNC server port |
 
-### 2. VNC server
+### b) Start a VNC server
 
-Install [TightVNC Server](https://www.tightvnc.com/) (or UltraVNC) and set a strong
-VNC password. It listens on port `5900`.
+Install [TightVNC Server](https://www.tightvnc.com/) (or UltraVNC) and set a
+**strong VNC password**. It listens on port `5900`.
 
-### 3. Reachable from anywhere — Cloudflare Tunnel
+> 💡 Don't change where VNC listens. The Node server only needs to reach this
+> port.
 
-Don't port-forward. Use Cloudflare Tunnel (free, works behind NAT):
+### c) Open optional desktop shortcuts
 
-```bat
-winget install cloudflare.cloudflared
-cloudflared tunnel login
-cloudflared tunnel create remote-desktop
-cloudflared tunnel route dns remote-desktop pc.your-domain.com
+Create two shortcuts on your desktop/bایلر:
+
+- **Start Remote Desktop**: `cmd /c cd /d "%USERPROFILE%\Documents\remote-desktop" && npm install && start /b node server\server.js`
+- **Stop Remote Desktop**: `taskkill /f /im node.exe`
+
+---
+
+## 2. From anywhere (laptop/phone/tablet)
+
+### Option A — Use your own domain (recommended)
+
+1. Install the Cloudflare Tunnel on Windows:
+
+   ```bat
+   winget install cloudflare.cloudflared
+   cloudflared tunnel login
+   cloudflared tunnel create remote-desktop
+   cloudflared tunnel route dns remote-desktop pc.your-domain.com
+   ```
+
+2. Create `remote-desktop\config.yml`:
+
+   ```yaml
+   tunnel: <TUNNEL_ID>
+   credentials-file: C:\Users\<you>\.cloudflared\<TUNNEL_ID>.json
+   ingress:
+     - hostname: pc.your-domain.com
+       service: http://localhost:6080
+     - service: http_status:404
+   ```
+
+3. Run the tunnel:
+
+   ```bat
+   cloudflared tunnel run remote-desktop
+   ```
+
+4. Open `https://pc.your-domain.com/remote-desktop.html` from any device.
+
+### Option B — Skip the domain
+
+If you just want to test from the same Wi-Fi, open
+`http://<PC-ip>:6080/remote-desktop.html` on your device. No tunnel needed, but
+it only works on your local network.
+
+---
+
+## 3. Load the client from `about:blank` (no server needed for viewing)
+
+The client file itself is a standalone web page. To view it inside a `about:blank`
+tab, paste this into the DevTools console (`F12`) of the blank tab:
+
+```js
+document.write('<iframe src="https://YOUR-HOST/remote-desktop.html" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>');
 ```
 
-`config.yml`:
+Replace `YOUR-HOST` with your URL (e.g. `https://pc.your-domain.com`).
+Alternatively, bookmark the file and open it directly — same result.
 
-```yaml
-tunnel: <TUNNEL_ID>
-credentials-file: C:\Users\<you>\.cloudflared\<TUNNEL_ID>.json
-ingress:
-  - hostname: pc.your-domain.com
-    service: http://localhost:6080
-  - service: http_status:404
+> ⚠️ `about:blank` is a blank page, so a real browser (or the console trick above)
+> is needed to render the client. The file is meant to be served over HTTPS.
+
+---
+
+## 4. Goodbye, `about:blank`
+
+The client auto-connects when the URL ends with `#wss://...`:
+
+```
+https://pc.your-domain.com/remote-desktop.html#wss://pc.your-domain.com/websockify
 ```
 
-Run it: `cloudflared tunnel run remote-desktop` (install as a Windows service with
-`cloudflared service install` so it starts on boot).
+Click **Connect** and enter the VNC password to start typing on your PC.
 
-Now open `https://pc.your-domain.com/remote-desktop.html` from anywhere —
-the client connects over `wss://pc.your-domain.com/websockify` automatically.
+---
 
-## Security notes
+## Security checklist
 
-- Start the Node server **only on localhost** (`127.0.0.1`) and put it behind
-  Cloudflare Tunnel. Never expose port 6080 (or 5900) directly to the internet.
-- The VNC connection is end-to-end TLS via Cloudflare, but still set a strong
-  VNC password.
-- Add Cloudflare Access (Zero Trust) in front of the hostname for an extra auth
-  layer (free for ≤50 users).
+- [ ] Node server bound to `127.0.0.1` only (default). Never expose port 6080 or
+      5900 to the internet.
+- [ ] VNC password is strong.
+- [ ] Cloudflare Tunnel used instead of port-forwarding.
+- [ ] Optional: Cloudflare Access (Zero Trust) in front of `pc.your-domain.com`.
+
+---
+
+## Project files
+
+```
+remote-desktop/
+├── package.json          # Node project manifest, "npm install"
+├── server/
+│   └── server.js         # Serves the client; bridges WebSocket → VNC
+└── remote-desktop.html   # The noVNC client (the only file the browser needs)
+README.md                 # This file
+```
