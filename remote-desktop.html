@@ -239,10 +239,10 @@
   <div id="fatal"></div>
 </div>
 
-<!-- noVNC core (browser ES module build). Importing inside the main
-     module guarantees RFB exists before any Connect click can run. -->
-<script type="module">
-  import RFB from 'https://unpkg.com/@novnc/novnc@1.5.0/core/rfb.js';
+<!-- noVNC core, vendored (no CDN, no CORS). Defines window.RFB.
+     Rebuild with: bun build vendor-entry.js --format=iife --outfile=vendor/novnc/novnc.js --minify -->
+<script src="vendor/novnc/novnc.js"></script>
+<script>
 
   const $ = (id) => document.getElementById(id);
   const status = $('status'), panel = $('connectPanel'), screenEl = $('screen'),
