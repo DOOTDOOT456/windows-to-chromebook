@@ -5,7 +5,44 @@ const path = require("path");
 
 const DEFAULTS = {
   server: { port: 6080, host: "127.0.0.1" },
-  vnc: { host: "127.0.0.1", port: 5900 }
+  vnc: { host: "127.0.0.1", port: 5900 },
+  stream: {
+    scaleViewport: true,
+    viewOnly: false,
+    quality: 6,
+    encoding: "auto",
+    desktopScalingFactor: 1,
+    jpegQuality: 6,
+    paletteSize: 0,
+    ffv1: false,
+    copyRectangles: false,
+    tight: false,
+    tightCompression: false
+  },
+  control: {
+    sendCtrlAltDel: true,
+    sendAltTab: true,
+    sendAltF4: true,
+    sendWinD: true,
+    sendEsc: true,
+    sendEnter: true,
+    sendSpace: true,
+    sendArrowKeys: true,
+    sendNumericPad: true,
+    showSendKeys: true,
+    showFullscreen: true
+  },
+  client: {
+    showCursor: true,
+    waitForWindowResponse: false,
+    hostname: "localhost",
+    password: "",
+    port: 5900,
+    showDotCursor: false,
+    shared: false,
+    cursor: false,
+    resizeSession: false
+  }
 };
 
 function loadConfig() {

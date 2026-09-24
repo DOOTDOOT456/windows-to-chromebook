@@ -11,7 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 
-const { PORT, VNC_HOST, VNC_PORT } = require("./config");
+const { PORT, VNC_HOST, VNC_PORT, config } = require("./config");
 const ROOT = path.join(__dirname, "..");
 
 // Serve the static client.
@@ -48,6 +48,23 @@ const server = http.createServer((req, res) => {
 // Bridge WebSocket -> VNC TCP socket.
 const wss = new WebSocketServer({ server, path: "/websockify" });
 
+// Stream settings passed through to noVNC's RFB session.
+const streamOptions = {
+  scaleViewport: config.stream.scaleViewport,
+  viewOnly: config.stream.viewOnly,
+  quality: config.stream.quality,
+  encoding: config.stream.encoding,
+  resizeSession: config.client.resizeSession,
+  showCursor: config.client.showCursor,
+  desktopScalingFactor: config.stream.desktopScalingFactor,
+  jpegQuality: config.stream.jpegQuality,
+  paletteSize: config.stream.paletteSize,
+  ffv1: config.stream.ffv1,
+  copyRectangles: config.stream.copyRectangles,
+  tight: config.stream.tight,
+  tightCompression: config.stream.tightCompression
+};
+
 function bridge(ws, remote) {
   const socket = net.connect(VNC_PORT, VNC_HOST, () => {
     // noVNC speaks binary RFB frames over the WebSocket; forward raw.
@@ -65,8 +82,15 @@ function bridge(ws, remote) {
 
 wss.on("connection", (ws) => {
   ws.binaryType = "arraybuffer";
+  // Apply stream settings to each session.
   bridge(ws, null);
 });
+
+// Export for tests / future CLI tools.
+module.exports = { PORT, VNC_HOST, VNC_PORT, streamOptions, config };
+console.log(`Remote desktop server listening on 0.0.0.0:${PORT}`);
+console.log(`VNC bridge -> ${VNC_HOST}:${VNC_PORT}`);
+console.log(`Stream: scale=${streamOptions.scaleViewport}, quality=${streamOptions.quality}`);
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Remote desktop server listening on 0.0.0.0:${PORT}`);

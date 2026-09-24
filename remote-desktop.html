@@ -23,6 +23,17 @@
     flex-wrap: wrap;
   }
   header h1 { font-size: 14px; font-weight: 600; margin-right: auto; }
+  #settingsBtn { background: #1f2733; color: #e6edf3; border: 0; border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+  #settingsBtn:hover { background: #2a3543; }
+  #settingsPanel {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
+    background: #11161d; border-top: 1px solid #2a3543;
+    padding: 12px 16px; display: none;
+    font-size: 13px;
+  }
+  #settingsPanel input[type="range"] { vertical-align: middle; }
+  #settingsPanel label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  #settingsPanel label input { width: auto; vertical-align: middle; }
   header input {
     background: #0b0f14; color: #e6edf3;
     border: 1px solid #2a3543; border-radius: 6px;
@@ -85,7 +96,28 @@
     <button data-fullscreen>Fullscreen</button>
   </div>
   <button id="btnDisconnect" class="danger hidden">Disconnect</button>
+  <button id="settingsBtn" title="Settings">⚙️ Settings</button>
 </header>
+
+<div id="settingsPanel">
+  <label>Scale viewport <input type="checkbox" id="s_scale" checked></label>
+  <label>View only <input type="checkbox" id="s_viewOnly"></label>
+  <label>Quality <input type="range" id="s_quality" min="1" max="9" step="1" value="6"></label>
+  <label>Encoding <input type="text" id="s_encoding" value="auto" style="width:90px"></label>
+  <label>Desktop scaling factor <input type="range" id="s_factor" min="1" max="3" step="0.25" value="1"></label>
+  <label>JPEG quality <input type="range" id="s_jpeg" min="1" max="9" step="1" value="6"></label>
+  <label>Show cursor <input type="checkbox" id="s_cursor" checked></label>
+  <label>Send Ctrl+Alt+Del <input type="checkbox" id="s_ctrlAltDel" checked></label>
+  <label>Send Alt+Tab <input type="checkbox" id="s_altTab" checked></label>
+  <label>Send Alt+F4 <input type="checkbox" id="s_altF4" checked></label>
+  <label>Send Win+D <input type="checkbox" id="s_winD" checked></label>
+  <label>Send Escape <input type="checkbox" id="s_escape" checked></label>
+  <label>Send Enter <input type="checkbox" id="s_enter" checked></label>
+  <label>Send Space <input type="checkbox" id="s_space" checked></label>
+  <label>Send Arrows <input type="checkbox" id="s_arrows" checked></label>
+  <label>Send Numeric Pad <input type="checkbox" id="s_numpad" checked></label>
+  <label>Show send-keys buttons <input type="checkbox" id="s_showKeys" checked></label>
+</div>
 
 <div id="screen">
   <div id="connectPanel">
@@ -186,6 +218,83 @@
     else screenEl.requestFullscreen();
   });
   $('scale').addEventListener('change', (e) => { if (rfb) rfb.scaleViewport = e.target.checked; });
+
+  // ---------- Settings panel ----------
+  $('settingsBtn').addEventListener('click', () => {
+    $('settingsPanel').style.display = $('settingsPanel').style.display === 'block' ? 'none' : 'block';
+  });
+
+  // Read the filter controls into the RFB options.
+  function readSettings() {
+    return {
+      scaleViewport: $('s_scale').checked,
+      viewOnly: $('s_viewOnly').checked,
+      quality: Number($('s_quality').value),
+      encoding: $('s_encoding').value,
+      desktopScalingFactor: Number($('s_factor').value),
+      jpegQuality: Number($('s_jpeg').value),
+      showCursor: $('s_cursor').checked
+    };
+  }
+
+  // Apply settings to the active RFB session.
+  function applySettings(opts) {
+    if (!rfb) return;
+    Object.assign(rfb, opts);
+    if (opts.scaleViewport !== undefined) rfb.scaleViewport = opts.scaleViewport;
+    if (opts.viewOnly !== undefined) rfb.viewOnly = opts.viewOnly;
+    if (opts.quality !== undefined) rfb.quality = opts.quality;
+    if (opts.encoding !== undefined) rfb.encoding = opts.encoding;
+    if (opts.desktopScalingFactor !== undefined) rfb.desktopScalingFactor = opts.desktopScalingFactor;
+    if (opts.jpegQuality !== undefined) rfb.jpegQuality = opts.jpegQuality;
+    if (opts.showCursor !== undefined) rfb.showCursor = opts.showCursor;
+    rfb.resizeSession = false;
+  }
+
+  // Sync UI with RFB on connect.
+  rfb.addEventListener('connect', () => {
+    $('s_scale').checked = rfb.scaleViewport;
+    $('s_viewOnly').checked = rfb.viewOnly;
+    $('s_quality').value = rfb.quality || 6;
+    $('s_encoding').value = rfb.encoding || 'auto';
+    $('s_factor').value = rfb.desktopScalingFactor || 1;
+    $('s_jpeg').value = rfb.jpegQuality || 6;
+    $('s_cursor').checked = rfb.showCursor !== false;
+  });
+
+  // Listen to the settings UI.
+  $('s_scale').addEventListener('change', (e) => { if (rfb) applySettings({ scaleViewport: e.target.checked }); });
+  $('s_viewOnly').addEventListener('change', (e) => { if (rfb) applySettings({ viewOnly: e.target.checked }); });
+  $('s_quality').addEventListener('input', (e) => { if (rfb) applySettings({ quality: Number(e.target.value) }); });
+  $('s_encoding').addEventListener('change', (e) => { if (rfb) applySettings({ encoding: e.target.value }); });
+  $('s_factor').addEventListener('input', (e) => { if (rfb) applySettings({ desktopScalingFactor: Number(e.target.value) }); });
+  $('s_jpeg').addEventListener('input', (e) => { if (rfb) applySettings({ jpegQuality: Number(e.target.value) }); });
+  $('s_cursor').addEventListener('change', (e) => { if (rfb) applySettings({ showCursor: e.target.checked }); });
+
+  // ---------- Control keys ----------
+  function bindCtrlKeys(prefix, map, keys) {
+    keys.forEach((k) => {
+      const id = prefix + k;
+      const cb = () => rfb && rfb.sendKeyMap ? rfb.sendKeyMap(map) : console.warn('sendKeyMap not available');
+      document.getElementById(id).addEventListener('change', (e) => {
+        if (e.target.checked) cb();
+      });
+    });
+  }
+
+  bindCtrlKeys('s_ctrl', { ctrlKey: true, altKey: true, key: 'Control' }, ['sendCtrlAltDel']);
+  bindCtrlKeys('s_alt', { ctrlKey: false, altKey: true, key: 'Tab' }, ['sendAltTab']);
+  bindCtrlKeys('s_altF4', { key: 'F4', altKey: true }, ['sendAltF4']);
+  bindCtrlKeys('s_winD', { metaKey: true, key: 'd' }, ['sendWinD']);
+  bindCtrlKeys('s_escape', { key: 'Escape' }, ['sendEsc']);
+  bindCtrlKeys('s_enter', { key: 'Enter' }, ['sendEnter']);
+  bindCtrlKeys('s_space', { key: 'Space' }, ['sendSpace']);
+  bindCtrlKeys('s_arrows', { key: 'Arrows' }, ['sendArrowKeys']);
+  bindCtrlKeys('s_numpad', { key: 'Numpad' }, ['sendNumericPad']);
+
+  document.getElementById('s_showKeys').addEventListener('change', (e) => {
+    $('sendKeys').style.display = e.target.checked ? 'flex' : 'none';
+  });
 
   // Quick-add the example connection URL, then connect automatically.
   $('btnUseExample').addEventListener('click', () => {
