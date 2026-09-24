@@ -306,7 +306,6 @@
   $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
   $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
   btnDisconnect.addEventListener('click', disconnect);
-  btnDisconnect.addEventListener('click', disconnect);
   sendKeys.querySelector('[data-ctrl-alt-del]').addEventListener('click', () => rfb && rfb.sendCtrlAltDel());
   sendKeys.querySelector('[data-fullscreen]').addEventListener('click', () => {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -394,9 +393,19 @@
     $('sendKeys').style.display = e.target.checked ? 'flex' : 'none';
   });
 
+  // Default the WebSocket endpoint to the host this page was opened from,
+  // so the Node server and Cloudflare tunnels work without typing a URL.
+  function defaultWsUrl() {
+    if (location.protocol === 'https:' || location.protocol === 'http:') {
+      return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/websockify';
+    }
+    return 'wss://pc.example.com/websockify';
+  }
+  $('url').value = defaultWsUrl();
+
   // Quick-add the example connection URL, then connect automatically.
   $('btnUseExample').addEventListener('click', () => {
-    const example = 'wss://pc.your-domain.com/websockify';
+    const example = defaultWsUrl();
     $('url').value = example;
     $('exampleText').textContent = example;
     $('exampleUrl').classList.remove('hidden');
