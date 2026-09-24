@@ -60,21 +60,6 @@
     color: #f87171; font-size: 15px; padding: 20px; text-align: center;
     background: rgba(0,0,0,.75); z-index: 10;
   }
-  #authGate {
-    position: absolute; inset: 0; z-index: 20;
-    background: #0b0f14;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 16px; text-align: center; padding: 20px;
-  }
-  #authGate h2 { font-size: 22px; }
-  #authGate p { color: #8b98a9; font-size: 14px; max-width: 480px; line-height: 1.5; }
-  #authGate code { color: #93c5fd; }
-  #authGate input {
-    background: #11161d; color: #e6edf3; border: 1px solid #2a3543;
-    border-radius: 6px; padding: 10px 12px; font-size: 14px; width: 380px; max-width: 90vw;
-  }
-  #gBtn { min-height: 44px; }
-  #authUser { color: #34d399; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -106,84 +91,17 @@
     </div>
   </div>
   <div id="fatal"></div>
-  <div id="authGate">
-    <h2>🔒 Sign in to continue</h2>
-    <p>
-      This remote desktop client is protected by Google Sign-In.<br>
-      Paste your Google OAuth <b>Client ID</b> (created at<br>
-      <code>console.cloud.google.com → APIs &amp; Services → Credentials → OAuth client ID</code>,<br>
-      type “Web application”, with this page’s origin under “Authorized JavaScript origins”).<br>
-      It’s remembered locally in this browser only.
-    </p>
-    <input id="clientId" type="text" placeholder="1234567890-abc.apps.googleusercontent.com" spellcheck="false">
-    <div id="gBtn"></div>
-    <p id="authUser"></p>
-  </div>
 </div>
 
 <!-- noVNC core + WebSockets shim loaded from CDN -->
 <script src="https://unpkg.com/@novnc/novnc@1.5.0/lib/rfb.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+
 <script>
   const $ = (id) => document.getElementById(id);
   const status = $('status'), panel = $('connectPanel'), screenEl = $('screen'),
         fatal = $('fatal'), btnConnect = $('btnConnect'), btnDisconnect = $('btnDisconnect'),
         sendKeys = $('sendKeys');
   let rfb = null;
-
-  /* ---------- Google Sign-In gate ---------- */
-  const authGate = $('authGate');
-  const ALLOWED_EMAILS = new Set(); // optionally hard-code allowed emails, e.g. new Set(['you@gmail.com'])
-
-  function b64urlDecode(s) {
-    s = s.replace(/-/g, '+').replace(/_/g, '/');
-    return decodeURIComponent(atob(s).split('').map(
-      c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-  }
-
-  function handleGoogleCredential(response) {
-    try {
-      // NOTE: client-side verification only — the JWT signature is NOT verified here.
-      // For real security, put Cloudflare Access or a token-verifying proxy in front.
-      const payload = JSON.parse(b64urlDecode(response.credential));
-      if (ALLOWED_EMAILS.size > 0 && !ALLOWED_EMAILS.has(payload.email)) {
-        $('authUser').textContent = '❌ ' + payload.email + ' is not authorized.';
-        return;
-      }
-      $('authUser').textContent = '✅ Signed in as ' + payload.email;
-      localStorage.setItem('rd_client_id', $('clientId').value.trim());
-      authGate.remove();
-    } catch (e) {
-      $('authUser').textContent = '❌ Sign-in failed: ' + e.message;
-    }
-  }
-
-  function initGoogle() {
-    const cid = $('clientId').value.trim();
-    if (!cid || cid.indexOf('.apps.googleusercontent.com') === -1) {
-      $('clientId').focus();
-      return;
-    }
-    localStorage.setItem('rd_client_id', cid);
-    if (window.google && google.accounts && google.accounts.id) {
-      google.accounts.id.initialize({
-        client_id: cid,
-        callback: handleGoogleCredential,
-        auto_select: true
-      });
-      google.accounts.id.renderButton($('gBtn'), {
-        theme: 'filled_blue', size: 'large', shape: 'pill', text: 'signin_with'
-      });
-      google.accounts.id.prompt();
-    } else {
-      setTimeout(initGoogle, 300); // GSI script still loading
-    }
-  }
-
-  $('clientId').value = localStorage.getItem('rd_client_id') || '';
-  $('clientId').addEventListener('keydown', (e) => { if (e.key === 'Enter') initGoogle(); });
-  $('clientId').addEventListener('change', initGoogle);
-  if ($('clientId').value) initGoogle();
 
   function setStatus(text, cls) {
     status.textContent = text;

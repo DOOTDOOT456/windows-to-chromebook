@@ -4,8 +4,7 @@
 To use it from an `about:blank` page:
 
 1. Open `about:blank` in your browser.
-2. Paste this into the address bar... actually about:blank has no address bar — instead:
-   - Open DevTools console (`F12`) on the blank tab and run:
+2. Open DevTools console (`F12`) on the blank tab and run:
 
 ```js
 document.write('<iframe src="https://YOUR-HOST/remote-desktop.html" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>');
@@ -24,34 +23,38 @@ https://your-host/remote-desktop.html#wss://pc.your-domain.com/websockify
 
 ## Server setup on your Windows PC
 
-Two parts: a **VNC server on Windows** and a **tunnel** so you can reach it from anywhere.
+Three parts: a **Node.js server**, a **VNC server** on Windows, and a **tunnel** so
+you can reach it from anywhere.
 
-### 1. VNC server
+### 1. Node server (replaces `websockify`)
+
+```bat
+cd remote-desktop
+copy package.json .
+copy server\server.js .
+npm install
+start /b node server\server.js
+```
+
+That serves `remote-desktop.html` on `http://localhost:6080` and bridges
+WebSocket `/websockify` → `localhost:5900` (VNC). Env vars:
+
+| Var | Default | |
+|---|---|---|
+| `PORT` | `6080` | port to listen on |
+| `VNC_HOST` | `127.0.0.1` | where the VNC server listens |
+| `VNC_PORT` | `5900` | VNC server port |
+
+### 2. VNC server
 
 Install [TightVNC Server](https://www.tightvnc.com/) (or UltraVNC) and set a strong
 VNC password. It listens on port `5900`.
-
-### 2. WebSocket bridge
-
-The browser client speaks WebSocket, not raw VNC. Install Node.js, then:
-
-```bash
-npm install -g ws  # only if running the manual websockify
-```
-
-Easiest: use Python's websockify (`pip install websockify`) and run:
-
-```
-websockify --web=. 6080 localhost:5900
-```
-
-This serves the client files on port 6080 and bridges WebSockets → VNC.
 
 ### 3. Reachable from anywhere — Cloudflare Tunnel
 
 Don't port-forward. Use Cloudflare Tunnel (free, works behind NAT):
 
-```bash
+```bat
 winget install cloudflare.cloudflared
 cloudflared tunnel login
 cloudflared tunnel create remote-desktop
@@ -77,15 +80,9 @@ the client connects over `wss://pc.your-domain.com/websockify` automatically.
 
 ## Security notes
 
-- **Google Sign-In gate**: the client requires a Google account sign-in before the
-  connect panel is shown. You need an OAuth **Client ID** from
-  [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (type “Web application”,
-  with the page’s origin listed under Authorized JavaScript origins). The client ID is entered once
-  and remembered in localStorage. You can optionally hard-code allowed emails in the
-  `ALLOWED_EMAILS` set inside `remote-desktop.html`.
-  > ⚠️ Client-side sign-in proves identity but isn’t a hard security boundary — anyone with the URL
-  > can bypass it via DevTools. For a strong gate, put **Cloudflare Access (Zero Trust)** in front of
-  > the hostname (free for ≤50 users, supports Google as an identity provider) and/or verify the
-  > Google JWT on the server.
-- The VNC connection is end-to-end TLS via Cloudflare, but still set a strong VNC password.
-- Never expose port 5900 directly to the internet.
+- Start the Node server **only on localhost** (`127.0.0.1`) and put it behind
+  Cloudflare Tunnel. Never expose port 6080 (or 5900) directly to the internet.
+- The VNC connection is end-to-end TLS via Cloudflare, but still set a strong
+  VNC password.
+- Add Cloudflare Access (Zero Trust) in front of the hostname for an extra auth
+  layer (free for ≤50 users).
