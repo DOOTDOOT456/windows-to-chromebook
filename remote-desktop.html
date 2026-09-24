@@ -278,6 +278,7 @@
       btnDisconnect.classList.remove('hidden');
       sendKeys.classList.remove('hidden');
       btnConnect.disabled = false;
+      syncSettingsUI();
     });
     rfb.addEventListener('disconnect', (e) => {
       setStatus('Disconnected');
@@ -350,8 +351,9 @@
     rfb.resizeSession = false;
   }
 
-  // Sync UI with RFB on connect.
-  rfb.addEventListener('connect', () => {
+  // Sync the settings UI with the active RFB session.
+  function syncSettingsUI() {
+    if (!rfb) return;
     $('s_scale').checked = rfb.scaleViewport;
     $('s_viewOnly').checked = rfb.viewOnly;
     $('s_quality').value = rfb.quality || 6;
@@ -359,7 +361,7 @@
     $('s_factor').value = rfb.desktopScalingFactor || 1;
     $('s_jpeg').value = rfb.jpegQuality || 6;
     $('s_cursor').checked = rfb.showCursor !== false;
-  });
+  }
 
   // Listen to the settings UI.
   $('s_scale').addEventListener('change', (e) => { if (rfb) applySettings({ scaleViewport: e.target.checked }); });
@@ -371,25 +373,36 @@
   $('s_cursor').addEventListener('change', (e) => { if (rfb) applySettings({ showCursor: e.target.checked }); });
 
   // ---------- Control keys ----------
-  function bindCtrlKeys(prefix, map, keys) {
-    keys.forEach((k) => {
-      const id = prefix + k;
-      const cb = () => rfb && rfb.sendKeyMap ? rfb.sendKeyMap(map) : console.warn('sendKeyMap not available');
-      document.getElementById(id).addEventListener('change', (e) => {
-        if (e.target.checked) cb();
-      });
-    });
+  // noVNC sends keys via sendKey(keysym, code, down); sequences tap each
+  // key down/up. The checkbox toggles the corresponding on-screen button,
+  // which fires the sequence (keys are also honored from the settings UI).
+  const keySequences = {
+    s_ctrlAltDel: [[0xffe3, 'ControlLeft'], [0xffe9, 'AltLeft'], [0xffff, 'Delete']],
+    s_altTab:     [[0xffe9, 'AltLeft'], [0xff09, 'Tab']],
+    s_altF4:      [[0xffe9, 'AltLeft'], [0xffc1, 'F4']],
+    s_winD:       [[0xffe7, 'MetaLeft'], [0x0064, 'KeyD']],
+    s_escape:     [[0xff1b, 'Escape']],
+    s_enter:      [[0xff0d, 'Enter']],
+    s_space:      [[0x0020, 'Space']],
+    s_arrows:     [[0xff52, 'ArrowUp']],
+    s_numpad:     [[0xffb0, 'Numpad0']]
+  };
+
+  function sendKeysSeq(seq) {
+    if (!rfb) return;
+    for (const [keysym, code] of seq) {
+      rfb.sendKey(keysym, code, true);
+      rfb.sendKey(keysym, code, false);
+    }
   }
 
-  bindCtrlKeys('s_ctrl', { ctrlKey: true, altKey: true, key: 'Control' }, ['sendCtrlAltDel']);
-  bindCtrlKeys('s_alt', { ctrlKey: false, altKey: true, key: 'Tab' }, ['sendAltTab']);
-  bindCtrlKeys('s_altF4', { key: 'F4', altKey: true }, ['sendAltF4']);
-  bindCtrlKeys('s_winD', { metaKey: true, key: 'd' }, ['sendWinD']);
-  bindCtrlKeys('s_escape', { key: 'Escape' }, ['sendEsc']);
-  bindCtrlKeys('s_enter', { key: 'Enter' }, ['sendEnter']);
-  bindCtrlKeys('s_space', { key: 'Space' }, ['sendSpace']);
-  bindCtrlKeys('s_arrows', { key: 'Arrows' }, ['sendArrowKeys']);
-  bindCtrlKeys('s_numpad', { key: 'Numpad' }, ['sendNumericPad']);
+  // The header Ctrl+Alt+Del button uses noVNC's built-in sendCtrlAltDel
+  // (already bound below); the settings checkboxes send their combo once.
+  // The settings-panel checkboxes double as "send now" buttons for their combo.
+  for (const id of Object.keys(keySequences)) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', (e) => { if (e.target.checked) sendKeysSeq(keySequences[id]); });
+  }
 
   document.getElementById('s_showKeys').addEventListener('change', (e) => {
     $('sendKeys').style.display = e.target.checked ? 'flex' : 'none';
@@ -414,8 +427,9 @@
     connect();
   });
   $('btnCopyUrl').addEventListener('click', () => {
-    $('exampleText').select();
-    document.execCommand('copy');
+    const text = $('exampleText').textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .catch(() => {});
     $('btnCopyUrl').textContent = 'Copied!';
     setTimeout(() => { $('btnCopyUrl').textContent = 'Copy URL'; }, 1500);
   });
