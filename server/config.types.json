@@ -1,0 +1,47 @@
+{
+  "server": {
+    "port": 0,
+    "host": ""
+  },
+  "vnc": {
+    "host": "",
+    "port": 0
+  },
+  "stream": {
+    "scaleViewport": true,
+    "viewOnly": false,
+    "quality": 0,
+    "encoding": "",
+    "desktopScalingFactor": 0,
+    "jpegQuality": 0,
+    "paletteSize": 0,
+    "ffv1": false,
+    "copyRectangles": false,
+    "tight": false,
+    "tightCompression": false
+  },
+  "control": {
+    "sendCtrlAltDel": false,
+    "sendAltTab": false,
+    "sendAltF4": false,
+    "sendWinD": false,
+    "sendEsc": false,
+    "sendEnter": false,
+    "sendSpace": false,
+    "sendArrowKeys": false,
+    "sendNumericPad": false,
+    "showSendKeys": false,
+    "showFullscreen": false
+  },
+  "client": {
+    "showCursor": false,
+    "waitForWindowResponse": false,
+    "hostname": "",
+    "password": "",
+    "port": 0,
+    "showDotCursor": false,
+    "shared": false,
+    "cursor": false,
+    "resizeSession": false
+  }
+}

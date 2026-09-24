@@ -1,10 +1,12 @@
 // Loads server settings from config.json (or config.example.json), with
 // sensible defaults. Env vars (PORT, VNC_HOST, VNC_PORT) always win.
+// @ts-ignore
 const fs = require("fs");
+// @ts-ignore
 const path = require("path");
 
 const DEFAULTS = {
-  server: { port: 6080, host: "127.0.0.1" },
+  server: { port: 6080, host: "0.0.0.0" },
   vnc: { host: "127.0.0.1", port: 5900 },
   stream: {
     scaleViewport: true,
