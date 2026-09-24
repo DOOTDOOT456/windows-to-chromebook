@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Remote Desktop Client</title>
+  <script>
+    // Serve the client at both / and /remote-desktop.html (GitHub Pages has
+    // no server-side redirect, so this file bridges the root URL).
+    location.replace('remote-desktop.html' + location.search + location.hash);
+  </script>
+</head>
+<body>
+  <p style="font-family: system-ui, sans-serif; padding: 2rem;">
+    Opening the remote desktop client… If nothing happens,
+    <a href="remote-desktop.html" style="color: #2563eb;">click here</a>.
+  </p>
+</body>
+</html>
