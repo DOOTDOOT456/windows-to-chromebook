@@ -1,22 +1,22 @@
 # Remote Desktop — one Windows PC → Chromebook (browser client)
 
-A single Windows PC runs the Node.js server and is controlled **through the
-browser** from any device — including a Chromebook — over your local network or
-the internet. No second PC, no clouds, no browser add-ons on the Chromebook.
+A single Windows PC runs the **Node.js server** and the **VNC server**. Any
+device — including a Chromebook — controls it through a browser, over the
+internet via a **Cloudflare tunnel**. No installs on the Chromebook, no cloud
+apps, no browser extensions.
 
 ```
-Windows PC (host)                      Chromebook / phone / laptop
-  |  Node server :6080  |                 |  open client URL
-  |  (serves file)      |--- HTTP --->    |
+Windows PC (host)                       Chromebook / phone / laptop
+  |  Node server :6080  |                 |  open tunnel URL
+  |  (serves file)      |--- HTTPS --->   |
   |  VNC :5900 <---      |                 |  (VNC password)
-  |  TightVNC + Chrome   |--- VNC frames ->|
+  |  TightVNC + Node     |--- VNC frames ->|
 ```
 
-- **Server side:** Node.js (`server/server.js`) → serves the noVNC client and
+- **Server side:** Node.js (`server/server.js`) serves the noVNC client and
   bridges WebSocket → VNC on the same Windows PC.
-- **VNC side:** TightVNC Server on Windows → connects to the Chromebook's
-  built-in **Serial/LVDS** or via a Chrome app (see setup below).
-- **Control side:** any device with a browser can open the client.
+- **VNC side:** TightVNC Server on Windows (port 5900).
+- **Control side:** any browser, no extensions needed.
 
 ---
 
@@ -25,34 +25,29 @@ Windows PC (host)                      Chromebook / phone / laptop
 | Item | What for |
 |---|---|
 | Windows 10/11 PC | Runs Node.js + TightVNC |
-| Chromebook | The display/mouse/keyboard you're controlling (via VNC) |
+| Chromebook | The device you're controlling (via browser only) |
 | Node.js 18+ (LTS) | The server that bridges the browser ↔ VNC |
-| TightVNC (or UltraVNC) | The VNC server that reaches the Chromebook |
-| Any browser on the Chromebook | The noVNC client — no extension needed |
+| TightVNC (or UltraVNC) | The VNC server on Windows |
+| **Cloudflare tunnel** | Puts your Windows PC on the internet (free) |
 
-> Use the **same Windows PC** as the server. The Chromebook connects *to* it,
-> not the other way around.
+> Everything runs on the Windows PC. The Chromebook only opens a URL.
 
 ---
 
-## 1. Install the VNC server on Windows (reaches the Chromebook)
+## 1. Install the VNC server on Windows
 
 1. Install [TightVNC Server](https://www.tightvnc.com/) (or UltraVNC).
 2. Open **TightVNC Server** → **TightVNC Server Options** → **Users**.
-3. Add a **VNC password**. Use a long one — it's the only thing protecting the
-   Chromebook you're controlling.
-4. Important: TightVNC listens on port **5900**. The Node server expects this.
-
-> ✅ If you're already running a VNC server, skip to step 2. Set VNC_HOST/
-> VNC_PORT in step 2.1 if it differs.
+3. Add a **VNC password** (long and unique — this is the only thing protecting
+   the Chromebook you're controlling).
+4. Confirm it listens on port **5900** (TightVNC's default).
 
 ---
 
 ## 2. Install the Node.js server on the same Windows PC
 
-1. Download and install **Node.js 18+ LTS** from
-   <https://nodejs.org> (check "Add to PATH").
-2. Open **Command Prompt** (or PowerShell) and run:
+1. Install **Node.js 18+ LTS** from <https://nodejs.org> (check **Add to PATH**).
+2. In **Command Prompt** (or PowerShell):
 
    ```bat
    cd remote-desktop
@@ -60,7 +55,7 @@ Windows PC (host)                      Chromebook / phone / laptop
    start /b node server\server.js
    ```
 
-3. Windows Firewall might ask to allow `node.exe` through. **Allow it** (private
+3. Windows Firewall may ask to allow `node.exe` — **Allow it** (private
    networks). This opens port 6080.
 
 You should see:
@@ -70,150 +65,160 @@ Remote desktop server listening on 0.0.0.0:6080
 VNC bridge -> 127.0.0.1:5900
 ```
 
-### Optional: change ports (only if 5900/6080 clash)
+> Test on the PC itself: open a browser and go to
+> `http://localhost:6080/remote-desktop.html` — the client should load.
+> (Connecting needs the tunnel or the password set.)
+
+---
+
+## 3. Make it reachable from anywhere — Cloudflare Tunnel
+
+The tunnel sits on the Windows PC. The Chromebook never touches the PC's IP
+directly; it only connects to the public tunnel URL over TLS.
+
+### Quick tunnel (recommended for first setup)
+
+Zero DNS, zero account — Cloudflare gives you a public URL:
 
 ```bat
-set PORT=6080
-set VNC_PORT=5900
-start /b node server\server.js
+winget install cloudflare.cloudflared
+cloudflared tunnel run --url http://localhost:6080
 ```
 
----
+You get a URL like:
 
-## 3. Connect the Chromebook to this Windows PC (step by step)
+```
+https://random-name.trycloudflare.com
+```
 
-The Windows PC must be able to reach the Chromebook. Two ways:
+### Fixed tunnel (optional — permanent URL)
 
-### A. Same Wi‑Fi (easiest, no cloud)
+If you want a stable address, use your own domain (or request a fixed quick
+tunnel URL from Cloudflare) and create the tunnel once:
 
-1. Put both the Windows PC and the Chromebook on the **same Wi‑Fi network**.
-2. Find the Windows PC's IP:
+```bat
+cloudflared tunnel create remote-desktop
+cloudflared tunnel route dns remote-desktop pc.your-domain.com
+```
 
-   ```bat
-   ipconfig
-   ```
+`remote-desktop\config.yml`:
 
-   Look for **IPv4 address** (e.g. `192.168.1.42`).
+```yaml
+tunnel: <TUNNEL_ID>
+credentials-file: C:\Users\<you>\.cloudflared\<TUNNEL_ID>.json
+ingress:
+  - hostname: pc.your-domain.com
+    service: http://localhost:6080
+  - service: http_status:404
+```
 
-3. From the Chromebook browser, open:
+Run it:
 
-   ```
-   http://<PC-IP>:6080/remote-desktop.html
-   ```
+```bat
+cloudflared tunnel run remote-desktop
+```
 
-### B. Remote (different network / travel) — Cloudflare Tunnel (recommended)
-
-1. Install the Cloudflare Tunnel CLI on Windows:
-
-   ```bat
-   winget install cloudflare.cloudflared
-   cloudflared tunnel login
-   ```
-
-2. Run the tunnel, forwarding `localhost:6080` (the Node server) to the
-   internet:
-
-   ```bat
-   cloudflared tunnel run --url http://localhost:6080
-   ```
-
-3. You get a free public URL like:
-
-   ```
-   https://random-name.trycloudflare.com
-   ```
-
-4. Open that URL in the Chromebook browser (or any device).
-
-> 💡 Free Cloudflare Quick Tunnels rotate approximately every 24 hours. If you
-> need a permanent URL, see the note at the end of this guide.
+> ⚠️ Quick tunnels rotate ~24h. Use a fixed tunnel if the URL must not change.
 
 ---
 
-## 4. Control the Chromebook from the client
+## 4. Control the Chromebook from any device
 
-1. Open the client URL from step 3 (Windows PC or any device).
-2. The address field is pre-filled with `wss://localhost:6080/websockify`.
+1. On the Chromebook browser, open the tunnel URL:
+   `https://random-name.trycloudflare.com` (or `https://pc.your-domain.com`).
+2. The address field is pre-filled with `wss://remote-desktop:8080/websockify`
+   (the Node server serves `/websockify` for the WebSocket connection).
 3. **Click Connect**.
-4. Enter the VNC password from step 1.3 and click **OK**.
-5. The Chromebook's desktop appears in the browser. Mouse and keyboard are
-   passed through.
+4. Enter the **VNC password** (step 1.3) and click **OK**.
+5. The Chromebook's desktop appears in the browser — mouse and keyboard work.
 
-The client also has:
+**Client buttons:** Connect, Disconnect, Ctrl+Alt+Del, Fullscreen, Scale to fit.
 
-- **Ctrl+Alt+Del** — sends Ctrl+Alt+Del to the Chromebook
-- **Fullscreen** — toggle full-screen mode
-- **Scale to fit** — resize the screen to fit your window (on by default)
-
-> ⚠️ Chromebooks don't let you connect over a normal Ethernet LAN. If the
-> Chromebook is on a different network, the Cloudflare tunnel (step 3B) is
-> required. Inside the same Wi‑Fi, use the LAN URL from step 3A.
+> ⚠️ Keep the tab focused — Chrome throttles a background tab's mouse/keyboard
+> input.
 
 ---
 
-## 5. Troubleshooting
+## 5. Different network or no installs — what actually works
+
+This is the one path that needs **nothing installed on the Chromebook**:
+
+| Constraint | Only viable option |
+|---|---|
+| Chromebook on a different network | Cloudflare Quick/Fixed tunnel (step 3) |
+| Chromebook can't install any app | Browser is the only UI — only the tunnel works |
+| No internet on either side | Local Wi‑Fi only — not possible across networks |
+
+The important detail: the tunnel is **server-side on the Windows PC**. The
+Chromebook just opens `https://<tunnel>.trycloudflare.com`, and Cloudflare
+forwards that to `localhost:6080` on your PC. Nothing from the Chromebook
+ever has to install anything.
+
+If the Chromebook's browser can't reach public internet at all, there is no
+install-free solution — you'd need to connect the two devices on the same
+network (Windows → Chromebook browser directly, no tunnel).
+
+---
+
+## 6. Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| `Connection refused` | TightVNC is not running, or VNC password is wrong |
-| `ERR_CONNECTION_REFUSED` from the Chromebook | Node server not running on the PC, or Windows Firewall blocked `node.exe` |
-| `ERR_CONNECTION_TIMED_OUT` | PC and Chromebook not on the same Wi‑Fi (use the tunnel) |
-| Chromebook page stays at `chrome://` or an error | Chromebook's Remote Desktop / VNC support not enabled — see below |
-| Screen is black after connecting | VNC password wrong; or Chromebook's display is sleeping |
-| Mouse/keyboard stop working after a few seconds | Chromebook went to sleep; wake it or disable auto-sleep |
+| Chromebook shows a Cloudflare error | Share the tunnel URL — it must be reachable |
+| Page loads but "Cannot connect to server" | VNC password wrong; or Node server not running |
+| `ERR_CONNECTION_REFUSED` | `node server\server.js` isn't running, or Firewall blocked it |
+| Chromubi/bookmark doesn't connect | Address field must start with `wss://`; check firewall rules |
+| Black screen after connecting | Password wrong or Chromebook asleep — wake it |
+| Mouse/keyboard stops after a few seconds | Chromebook/Chrome tab went idle — keep it awake or hover |
 
-### Chromebook side
+### Logs
 
-- Make sure the Chromebook is **on** and signed in.
-- If you want a simpler VNC target, you can run a VNC server **inside** the
-  Chromebook (e.g. a browser extension or Android VNC app on a Chromebook) and
-  point the client at it instead of the Windows PC. The rest of this guide
-  stays the same.
+* Node server: the Command Prompt window where you ran `node server\server.js`.
+* Tunnel: `cloudflared tunnel run ...` prints its own logs.
+* TightVNC: tray icon → **TightVNC Server** → **Log**.
 
 ---
 
-## 6. Security checklist
+## 7. Security checklist
 
 - [ ] VNC password is long and unique
 - [ ] Windows Firewall allows `node.exe` (port 6080) only on private networks
-- [ ] Only share the client URL with people you trust
-- [ ] Use the Cloudflare tunnel if the Chromebook is on a different network
+- [ ] The tunnel URL is only shared with people you trust
+- [ ] Tunnel target is `http://localhost:6080` only (never expose port 5900)
 
-> ⚠️ No client-side login gate was added because it's trivial to bypass in the
-> browser. Security rests on the VNC password + private URL.
+> ⚠️ No client-side login gate was added — it's trivial to bypass in a browser.
+> Security rests on the VNC password + a private tunnel URL.
 
 ---
 
-## 7. Quick reference
+## 8. Quick reference
 
 ```bat
-# 1. Windows: install Node.js 18+ and TightVNC Server
+# 1. Windows: TightVNC Server running on port 5900, strong password
 # 2. Windows: start the server
 cd remote-desktop
 npm install
 start /b node server\server.js
 
-# 3. Windows: start the tunnel (only if Chromebook is on another network)
+# 3. Windows: start the tunnel
 cloudflared tunnel run --url http://localhost:6080
 
-# 4. From the Chromebook (same Wi‑Fi or tunnel):
-http://<PC-IP>:6080/remote-desktop.html
-#    or https://random-name.trycloudflare.com
+# 4. Chromebook browser (anywhere, any device): open
+https://random-name.trycloudflare.com
+#    (or your fixed tunnel URL)
+
+# 5. Connect, enter the VNC password, done.
 ```
 
 ---
 
-## 8. Project files
+## 9. Project files
 
 ```
 remote-desktop/
-├── package.json          # Node project manifest, "npm install"
+├── package.json          # npm install
 ├── server/
-│   └── server.js         # Serves the client; bridges WebSocket → VNC
+│   └── server.js         # Node server + WebSocket → VNC bridge
 └── remote-desktop.html   # The noVNC client (only file a browser needs)
 README.md                 # This file
 ```
-
-> This project intentionally keeps everything on one machine. The Node server
-> serves the client and the VNC server runs on the same Windows PC — the
-> Chromebook just opens a browser URL.
