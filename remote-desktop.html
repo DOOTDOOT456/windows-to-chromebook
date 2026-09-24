@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Remote Desktop Client</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #0b0f14;
+    color: #e6edf3;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: #11161d;
+    border-bottom: 1px solid #1f2733;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 14px; font-weight: 600; margin-right: auto; }
+  header input {
+    background: #0b0f14; color: #e6edf3;
+    border: 1px solid #2a3543; border-radius: 6px;
+    padding: 6px 10px; font-size: 13px; width: 280px;
+  }
+  button {
+    background: #2563eb; color: #fff; border: 0; border-radius: 6px;
+    padding: 6px 14px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { background: #1d4ed8; }
+  button:disabled { background: #333c49; cursor: not-allowed; }
+  button.danger { background: #b91c1c; }
+  button.danger:hover { background: #991b1b; }
+  #status { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: #1f2733; }
+  #status.connected { background: #14532d; }
+  #status.error { background: #7f1d1d; }
+  #screen { flex: 1; overflow: auto; background: #000; position: relative; }
+  #screen canvas { display: block; margin: auto; }
+  #connectPanel {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; text-align: center; padding: 20px;
+  }
+  #connectPanel h2 { font-size: 22px; }
+  #connectPanel p { color: #8b98a9; font-size: 14px; max-width: 460px; line-height: 1.5; }
+  #connectPanel .row { display: flex; gap: 8px; }
+  #connectPanel input { width: 320px; padding: 10px 12px; font-size: 14px; }
+  .hidden { display: none !important; }
+  #sendKeys { display: flex; gap: 6px; }
+  #sendKeys button { background: #1f2733; }
+  #sendKeys button:hover { background: #2a3543; }
+  #fatal {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    color: #f87171; font-size: 15px; padding: 20px; text-align: center;
+    background: rgba(0,0,0,.75); z-index: 10;
+  }
+  #authGate {
+    position: absolute; inset: 0; z-index: 20;
+    background: #0b0f14;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; text-align: center; padding: 20px;
+  }
+  #authGate h2 { font-size: 22px; }
+  #authGate p { color: #8b98a9; font-size: 14px; max-width: 480px; line-height: 1.5; }
+  #authGate code { color: #93c5fd; }
+  #authGate input {
+    background: #11161d; color: #e6edf3; border: 1px solid #2a3543;
+    border-radius: 6px; padding: 10px 12px; font-size: 14px; width: 380px; max-width: 90vw;
+  }
+  #gBtn { min-height: 44px; }
+  #authUser { color: #34d399; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖥️ Remote Desktop</h1>
+  <span id="status">Disconnected</span>
+  <div id="sendKeys" class="hidden">
+    <button data-ctrl-alt-del>Ctrl+Alt+Del</button>
+    <button data-fullscreen>Fullscreen</button>
+  </div>
+  <button id="btnDisconnect" class="danger hidden">Disconnect</button>
+</header>
+
+<div id="screen">
+  <div id="connectPanel">
+    <h2>Connect to your PC</h2>
+    <p>
+      Enter the WebSocket address of your desktop server, e.g.<br>
+      <code style="color:#93c5fd">wss://pc.example.com/websockify</code><br>
+      (Cloudflare Tunnel / your LAN address — see README)
+    </p>
+    <div class="row">
+      <input id="url" type="url" placeholder="wss://pc.example.com/websockify" spellcheck="false">
+      <button id="btnConnect">Connect</button>
+    </div>
+    <div class="row">
+      <input id="password" type="password" placeholder="VNC password (optional)" style="width:180px">
+      <label style="font-size:13px;color:#8b98a9"><input type="checkbox" id="scale" checked> Scale to fit</label>
+    </div>
+  </div>
+  <div id="fatal"></div>
+  <div id="authGate">
+    <h2>🔒 Sign in to continue</h2>
+    <p>
+      This remote desktop client is protected by Google Sign-In.<br>
+      Paste your Google OAuth <b>Client ID</b> (created at<br>
+      <code>console.cloud.google.com → APIs &amp; Services → Credentials → OAuth client ID</code>,<br>
+      type “Web application”, with this page’s origin under “Authorized JavaScript origins”).<br>
+      It’s remembered locally in this browser only.
+    </p>
+    <input id="clientId" type="text" placeholder="1234567890-abc.apps.googleusercontent.com" spellcheck="false">
+    <div id="gBtn"></div>
+    <p id="authUser"></p>
+  </div>
+</div>
+
+<!-- noVNC core + WebSockets shim loaded from CDN -->
+<script src="https://unpkg.com/@novnc/novnc@1.5.0/lib/rfb.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const status = $('status'), panel = $('connectPanel'), screenEl = $('screen'),
+        fatal = $('fatal'), btnConnect = $('btnConnect'), btnDisconnect = $('btnDisconnect'),
+        sendKeys = $('sendKeys');
+  let rfb = null;
+
+  /* ---------- Google Sign-In gate ---------- */
+  const authGate = $('authGate');
+  const ALLOWED_EMAILS = new Set(); // optionally hard-code allowed emails, e.g. new Set(['you@gmail.com'])
+
+  function b64urlDecode(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    return decodeURIComponent(atob(s).split('').map(
+      c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+  }
+
+  function handleGoogleCredential(response) {
+    try {
+      // NOTE: client-side verification only — the JWT signature is NOT verified here.
+      // For real security, put Cloudflare Access or a token-verifying proxy in front.
+      const payload = JSON.parse(b64urlDecode(response.credential));
+      if (ALLOWED_EMAILS.size > 0 && !ALLOWED_EMAILS.has(payload.email)) {
+        $('authUser').textContent = '❌ ' + payload.email + ' is not authorized.';
+        return;
+      }
+      $('authUser').textContent = '✅ Signed in as ' + payload.email;
+      localStorage.setItem('rd_client_id', $('clientId').value.trim());
+      authGate.remove();
+    } catch (e) {
+      $('authUser').textContent = '❌ Sign-in failed: ' + e.message;
+    }
+  }
+
+  function initGoogle() {
+    const cid = $('clientId').value.trim();
+    if (!cid || cid.indexOf('.apps.googleusercontent.com') === -1) {
+      $('clientId').focus();
+      return;
+    }
+    localStorage.setItem('rd_client_id', cid);
+    if (window.google && google.accounts && google.accounts.id) {
+      google.accounts.id.initialize({
+        client_id: cid,
+        callback: handleGoogleCredential,
+        auto_select: true
+      });
+      google.accounts.id.renderButton($('gBtn'), {
+        theme: 'filled_blue', size: 'large', shape: 'pill', text: 'signin_with'
+      });
+      google.accounts.id.prompt();
+    } else {
+      setTimeout(initGoogle, 300); // GSI script still loading
+    }
+  }
+
+  $('clientId').value = localStorage.getItem('rd_client_id') || '';
+  $('clientId').addEventListener('keydown', (e) => { if (e.key === 'Enter') initGoogle(); });
+  $('clientId').addEventListener('change', initGoogle);
+  if ($('clientId').value) initGoogle();
+
+  function setStatus(text, cls) {
+    status.textContent = text;
+    status.className = cls || '';
+  }
+
+  function connect() {
+    const url = $('url').value.trim();
+    if (!url) { $('url').focus(); return; }
+    fatal.style.display = 'none';
+    btnConnect.disabled = true;
+    setStatus('Connecting…');
+    try {
+      rfb = new RFB(screenEl, url, { credentials: { password: $('password').value } });
+    } catch (e) {
+      showFatal('Failed to start connection: ' + e.message);
+      return;
+    }
+    rfb.scaleViewport = $('scale').checked;
+    rfb.resizeSession = false;
+    rfb.background = '#000';
+
+    rfb.addEventListener('connect', () => {
+      setStatus('Connected', 'connected');
+      panel.classList.add('hidden');
+      btnDisconnect.classList.remove('hidden');
+      sendKeys.classList.remove('hidden');
+      btnConnect.disabled = false;
+    });
+    rfb.addEventListener('disconnect', (e) => {
+      setStatus('Disconnected');
+      panel.classList.remove('hidden');
+      btnDisconnect.classList.add('hidden');
+      sendKeys.classList.add('hidden');
+      btnConnect.disabled = false;
+      if (e.detail && e.detail.clean === false) showFatal('Connection lost or refused. Check the URL, the server, and that it uses ws:// or wss:// correctly.');
+      rfb = null;
+    });
+    rfb.addEventListener('credentialsrequired', () => {
+      rfb.sendCredentials({ password: $('password').value });
+    });
+  }
+
+  function showFatal(msg) {
+    fatal.textContent = msg;
+    fatal.style.display = 'flex';
+    btnConnect.disabled = false;
+    setStatus('Error', 'error');
+  }
+
+  function disconnect() {
+    if (rfb) rfb.disconnect();
+  }
+
+  btnConnect.addEventListener('click', connect);
+  $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
+  $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') connect(); });
+  btnDisconnect.addEventListener('click', disconnect);
+  sendKeys.querySelector('[data-ctrl-alt-del]').addEventListener('click', () => rfb && rfb.sendCtrlAltDel());
+  sendKeys.querySelector('[data-fullscreen]').addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else screenEl.requestFullscreen();
+  });
+  $('scale').addEventListener('change', (e) => { if (rfb) rfb.scaleViewport = e.target.checked; });
+
+  // Allow pre-filling via URL hash: remote-desktop.html#wss://host/websockify
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash.startsWith('ws')) { $('url').value = hash; connect(); }
+</script>
+</body>
+</html>
