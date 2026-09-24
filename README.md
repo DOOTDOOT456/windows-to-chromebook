@@ -71,19 +71,50 @@ VNC bridge -> 127.0.0.1:5900
 
 ---
 
-## 3. Make it reachable from anywhere — Cloudflare Tunnel
+## 3. Cloudflare options for reaching your Windows PC
 
-The tunnel sits on the Windows PC. The **Chromebook connects to the public
-tunnel URL over TLS** — the Chromebook never touches the PC's IP directly and
-never installs anything.
+Your Chromebook needs an internet-accessible URL for the Node server. All of
+the following are Cloudflare products and all work with **no installs on the
+Chromebook**. Pick the row that matches what you want.
 
-### Quick tunnel — get a fixed URL (Cloudflare)
+| Option | URL type | Setup | Best for |
+|---|---|---|---|
+| **Quick tunnel (random)** | `https://<random>.trycloudflare.com` | `cloudflared tunnel run --url http://localhost:6080` | Fastest: one command, no DNS |
+| **Quick tunnel (fixed URL)** | `https://<name>.trycloudflare.com` (you pick the name) | Dashboard → Quick Tunnels → Request a fixed URL, then `cloudflared tunnel run --url http://localhost:6080 --subdomain <name>` | No domain, permanent-ish (free plan) |
+| **Own domain tunnel** | `https://pc.your-domain.com` | Domain → DNS → Cloudflare tunnel → `config.yml` + `cloudflared tunnel run remote-desktop` | Permanent, clean URL, no rotation |
+| **Cloudflare Access** (optional) | Same tunnel URL + identity gate | Tunnel + Access policy → only signed-in users can open the tunnel | Extra security (free for small teams) |
+| **Cloudflare Tunnel** (self-hosted alternative) | `https://<your-host>` | Self-host `cloudflared`/`cloudflared` on a second PC | No Cloudflare dependency |
 
-Cloudflare's quick tunnels normally give a random URL (`random-name`).
-You have two ways to get a fixed one:
+<!-- This project uses Cloudflare Tunnel as the Internet-facing reverse proxy.
+The rest of the README covers the 3 tunnel types and the optional Access
+layer. -->
 
-**Option A — Custom subdomain via the cloudflared CLI** (free, no Cloudflare
-account needed for the URL itself):
+The remaining sections show how to run **Option B (fixed quick tunnel)** and
+**Option C (own domain)** from a single Windows PC. Quick tunnel (random) is
+a one-liner; the own-domain tunnel is the most stable.
+
+---
+
+## 4. Quick tunnel — fastest setup (Option A)
+
+Zero DNS, zero account required. Cloudflare gives you a random public URL:
+
+```bat
+winget install cloudflare.cloudflared
+cloudflared tunnel run --url http://localhost:6080
+```
+
+You get something like `https://random-trycloudflare-com.trycloudflare.com`.
+It works but changes URL on every tunnel restart — fine for testing, not for
+a permanent remote desktop.
+
+---
+
+## 5. Quick tunnel — fixed URL (Option B)
+
+Request a fixed URL so the address doesn't change between restarts. Two ways:
+
+### B1 — Right in the cloudflared CLI (no dashboard, no signup needed)
 
 ```bat
 cloudflared tunnel create my-desktop
@@ -97,60 +128,61 @@ Your URL is:
 https://my-desktop.trycloudflare.com
 ```
 
-> ⚠️ The `--subdomain` value must match what Cloudflare accepted in step 1.
-
-**Option B — Fixed URL via the Cloudflare dashboard** (free, no setup):
+### B2 — Request a fixed URL in the Cloudflare dashboard (free)
 
 1. Open <https://one.dash.cloudflare.com> → **Networks → Tunnels** → **Create a tunnel**.
-2. Choose **HTTP** (or **Secure WebSockets**, which we use: `wss://`).
+2. Pick **HTTP** (or **Secure WebSockets**, which we use: `wss://`).
 3. Under **Quick Tunnels**, click **Request a fixed URL** and enter a name like
    `my-desktop`.
-4. Copy the assigned URL (e.g. `https://my-desktop.trycloudflare.com`).
-5. Create the tunnel locally:
-
-   ```bat
-   cloudflared tunnel create my-desktop
-   cloudflared tunnel token -- tunnel-id <TUNNEL_ID>
-   ```
-
-6. Run it with the token:
+4. Copy the assigned URL and run:
 
    ```bat
    cloudflared tunnel run --url http://localhost:6080 --subdomain my-desktop
    ```
 
-> Note: fixed quick tunnel URLs are approved in the Cloudflare dashboard and
-> can take a few minutes. Approved URLs are permanent on the free plan.
+> Fixed quick tunnel URLs are approved in the dashboard and can take a few
+> minutes. Once approved, they are permanent on the free plan.
 
-### Your own fixed URL via Cloudflare (choose this one)
+---
 
-If you own a domain (`pc.your-domain.com`), point it at the tunnel. This is
-the most stable option and doesn't depend on Cloudflare's random quick-tunnel
-URLs:
+## 6. Own domain tunnel (most stable, Option C)
 
-```bat
-cloudflared tunnel create remote-desktop
-cloudflared tunnel route dns remote-desktop pc.your-domain.com
-```
+If you own a domain (`pc.your-domain.com`), point it at the tunnel. No
+Cloudflare-assigned URL, no rotation, fully permanent:
 
-`remote-desktop\config.yml`:
+1. **Add the tunnel:**
 
-```yaml
-tunnel: <TUNNEL_ID>
-credentials-file: C:\Users\<you>\.cloudflared\<TUNNEL_ID>.json
-ingress:
-  - hostname: pc.your-domain.com
-    service: http://localhost:6080
-  - service: http_status:404
-```
+   ```bat
+   cloudflared tunnel create remote-desktop
+   cloudflared tunnel token -- tunnel-id <TUNNEL_ID>
+   ```
 
-Run it:
+2. **Route DNS:** in the Cloudflare dashboard, add an **A/AAAA or CNAME** record
+   for `pc.your-domain.com` pointing at your Cloudflare nameservers (or use
+   `cloudflared tunnel route dns remote-desktop pc.your-domain.com`).
 
-```bat
-cloudflared tunnel run remote-desktop
-```
+3. **Configure the tunnel** (`remote-desktop\config.yml`):
 
-> ⚠️ Quick tunnels rotate ~24h. Use a fixed tunnel if the URL must not change.
+   ```yaml
+   tunnel: <TUNNEL_ID>
+   credentials-file: C:\Users\<you>\.cloudflared\<TUNNEL_ID>.json
+   ingress:
+     - hostname: pc.your-domain.com
+       service: http://localhost:6080
+     - service: http_status:404
+   ```
+
+4. **Run it:**
+
+   ```bat
+   cloudflared tunnel run remote-desktop
+   ```
+
+5. Open `https://pc.your-domain.com` on the Chromebook.
+
+> ⚠️ Quick tunnels rotate ~24h. Use this own-domain tunnel if the address must
+> never change.
+
 
 ---
 
